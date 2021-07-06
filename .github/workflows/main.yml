@@ -1,0 +1,25 @@
+name: Publish on PyPI
+on:
+  release:
+    types: [released]
+jobs:
+  publish_on_pypi:
+    name: Publish on PyPI
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ['ubuntu-20.04']
+        python-version: 3.9
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v1
+      
+      - name: install dependancies
+        run: pip install maturin 
+
+      - name: publish on pypi
+        run: cd y-py && maturin publish -u ${{ secrets.PYPI_USERNAME }}
+        env:
+          MATURIN_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
