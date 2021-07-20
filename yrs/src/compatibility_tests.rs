@@ -227,6 +227,7 @@ fn xml_fragment_insert() {
             right_origin: None,
             content: ItemContent::Type(Inner {
                 start: Cell::new(None),
+                map: HashMap::default(),
                 ptr: TypePtr::Id(BlockPtr::from(ID::new(CLIENT_ID, 0))),
                 name: None,
                 type_ref: TYPE_REFS_XML_TEXT,
@@ -243,6 +244,7 @@ fn xml_fragment_insert() {
             right_origin: None,
             content: ItemContent::Type(Inner {
                 start: Cell::new(None),
+                map: HashMap::default(),
                 ptr: TypePtr::Id(BlockPtr::from(ID::new(CLIENT_ID, 1))),
                 name: Some("node-name".to_string()),
                 type_ref: TYPE_REFS_XML_ELEMENT,

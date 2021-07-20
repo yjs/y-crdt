@@ -410,12 +410,20 @@ impl Item {
             // set the first conflicting item
             let mut o = if let Some(Block::Item(left)) = left {
                 left.right
-            } else if let Some(_sub) = &self.parent_sub {
-                //o = /** @type {AbstractType<any>} */ (this.parent)._map.get(this.parentSub) || null
-                //while (o !== null && o.left !== null) {
-                //    o = o.left
-                //}
-                todo!()
+            } else if let Some(sub) = &self.parent_sub {
+                if let Some(parent) = txn.store.get_type(&self.parent) {
+                    let mut o = parent.map.get(sub);
+                    while let Some(ptr) = o {
+                        if let Some(item) = txn.store.blocks.get_item(ptr) {
+                            o = item.left.as_ref();
+                        } else {
+                            break;
+                        }
+                    }
+                    o.cloned()
+                } else {
+                    None
+                }
             } else {
                 if let Some(parent) = txn.store.get_type(&self.parent) {
                     parent.start.get()
@@ -476,12 +484,25 @@ impl Item {
                 self.right = left.right.replace(BlockPtr::new(self.id, pivot));
             }
         } else {
-            let r = if let Some(_parent_sub) = &self.parent_sub {
-                //r = /** @type {AbstractType<any>} */ (this.parent)._map.get(this.parentSub) || null
-                //while (r !== null && r.left !== null) {
-                //    r = r.left
-                //}
-                todo!()
+            let r = if let Some(parent_sub) = &self.parent_sub {
+                let start = match txn.store.get_type(&self.parent) {
+                    None => txn
+                        .store
+                        .init_type_from_ptr(&self.parent)
+                        .and_then(|p| p.map.get(parent_sub)),
+                    Some(parent) => parent.map.get(parent_sub),
+                }
+                .cloned();
+                let mut o = start.as_ref();
+
+                while let Some(ptr) = o {
+                    if let Some(item) = txn.store.blocks.get_item(ptr) {
+                        o = item.left.as_ref();
+                    } else {
+                        break;
+                    }
+                }
+                o.cloned()
             } else {
                 let parent_type = txn.store.init_type_from_ptr(&self.parent).unwrap();
                 let start = parent_type
@@ -496,14 +517,19 @@ impl Item {
             if let Some(right) = txn.store.blocks.get_item_mut(right_id) {
                 right.left = Some(BlockPtr::new(self.id, pivot));
             }
-        } else if let Some(_parent_sub) = &self.parent_sub {
-            // // set as current parent value if right === null and this is parentSub
-            // /** @type {AbstractType<any>} */ (this.parent)._map.set(this.parentSub, this)
-            // if (this.left !== null) {
-            //   // this is the current attribute value of parent. delete right
-            //   this.left.delete(transaction)
-            // }
-            todo!()
+        } else if let Some(parent_sub) = &self.parent_sub {
+            // set as current parent value if right === null and this is parentSub
+            if let Some(parent) = txn.store.get_type_mut(&self.parent) {
+                let ptr = BlockPtr::new(self.id, pivot);
+                parent.map.insert(parent_sub.clone(), ptr);
+            }
+            if let Some(left) = self.left {
+                // this is the current attribute value of parent. delete right
+                if let Some(item) = txn.store.blocks.get_item_mut(&left) {
+                    //item.delete(txn);
+                    todo!()
+                }
+            }
         }
 
         self.integrate_content(txn);
@@ -693,6 +719,36 @@ impl ItemContent {
                 str.len() as u32
             }
             _ => 1,
+        }
+    }
+
+    pub fn get_content(&self) -> Vec<Any> {
+        match self {
+            ItemContent::Any(v) => v.clone(),
+            ItemContent::Binary(v) => vec![Any::Buffer(v.clone().into_boxed_slice())],
+            ItemContent::Deleted(_) => Vec::default(),
+            ItemContent::Doc(_, v) => vec![v.clone()],
+            ItemContent::JSON(v) => v.iter().map(|v| Any::String(v.clone())).collect(),
+            ItemContent::Embed(v) => vec![Any::String(v.clone())],
+            ItemContent::Format(_, _) => Vec::default(),
+            ItemContent::String(v) => v.chars().map(|c| Any::String(c.to_string())).collect(),
+            ItemContent::Type(_) => panic!("ItemContent::get_content on type?"),
+        }
+    }
+
+    /// Similar to [get_content], but it only returns the latest result and doesn't materialize
+    /// other for performance reasons.
+    pub fn value(&self) -> Option<Any> {
+        match self {
+            ItemContent::Any(v) => v.last().cloned(),
+            ItemContent::Binary(v) => Some(Any::Buffer(v.clone().into_boxed_slice())),
+            ItemContent::Deleted(_) => None,
+            ItemContent::Doc(_, v) => Some(v.clone()),
+            ItemContent::JSON(v) => v.last().map(|v| Any::String(v.clone())),
+            ItemContent::Embed(v) => Some(Any::String(v.clone())),
+            ItemContent::Format(_, _) => None,
+            ItemContent::String(v) => Some(Any::String(v.clone())),
+            ItemContent::Type(inner) => panic!("ItemContent::value on type?"),
         }
     }
 

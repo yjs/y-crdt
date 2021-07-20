@@ -32,6 +32,7 @@ impl Store {
     pub fn get_local_state(&self) -> u32 {
         self.blocks.get_state(&self.client_id)
     }
+
     pub fn get_type(&self, ptr: &types::TypePtr) -> Option<&types::Inner> {
         match ptr {
             types::TypePtr::NamedRef(name_ref) => self.types.get(*name_ref as usize).map(|t| &t.0),
@@ -50,10 +51,31 @@ impl Store {
         }
     }
 
+    pub fn get_type_mut(&mut self, ptr: &types::TypePtr) -> Option<&mut types::Inner> {
+        match ptr {
+            types::TypePtr::NamedRef(name_ref) => {
+                self.types.get_mut(*name_ref as usize).map(|t| &mut t.0)
+            }
+            types::TypePtr::Id(id) => {
+                // @todo the item might not exist
+                let item = self.blocks.get_item_mut(id)?;
+                if let block::ItemContent::Type(t) = &mut item.content {
+                    Some(t)
+                } else {
+                    None
+                }
+            }
+            types::TypePtr::Named(name) => {
+                let tref = self.get_type_ref(name)?;
+                Some(&mut self.types[tref as usize].0)
+            }
+        }
+    }
+
     pub fn init_type_from_ptr(&mut self, ptr: &types::TypePtr) -> Option<&types::Inner> {
         match ptr {
             types::TypePtr::Named(name) => {
-                let id = self.init_type_ref(name);
+                let id = self.init_type_ref(name.clone());
                 self.types.get(id as usize).map(|t| &t.0)
             }
             _ => {
@@ -66,20 +88,21 @@ impl Store {
         }
     }
     pub fn create_type_ptr(&mut self, name: &str) -> types::TypePtr {
-        let id = self.init_type_ref(name);
+        let id = self.init_type_ref(name.to_owned());
         types::TypePtr::NamedRef(id)
     }
 
     pub fn get_type_ref(&self, string: &str) -> Option<u32> {
         self.type_refs.get(string).map(|r| *r)
     }
-    pub fn init_type_ref(&mut self, string: &str) -> u32 {
+
+    pub fn init_type_ref(&mut self, string: String) -> u32 {
         let types = &mut self.types;
         *self.type_refs.entry(string.to_owned()).or_insert_with(|| {
             let name_ref = types.len() as u32;
             let ptr = types::TypePtr::NamedRef(name_ref);
             let inner = types::Inner::new(ptr, None, types::TYPE_REFS_ARRAY);
-            types.push((inner, string.to_owned()));
+            types.push((inner, string));
             name_ref
         })
     }

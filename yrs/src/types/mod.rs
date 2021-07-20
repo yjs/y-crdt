@@ -5,7 +5,9 @@ use crate::*;
 pub use map::Map;
 pub use text::Text;
 
+use crate::block::BlockPtr;
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::hash::Hasher;
 
 pub struct Array {
@@ -50,7 +52,8 @@ pub const TYPE_REFS_XML_TEXT: TypeRefs = 6;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Inner {
-    pub start: Cell<Option<block::BlockPtr>>,
+    pub start: Cell<Option<BlockPtr>>,
+    pub map: HashMap<String, BlockPtr>,
     pub ptr: TypePtr,
     pub name: Option<String>,
     pub type_ref: TypeRefs,
@@ -60,6 +63,7 @@ impl Inner {
     pub fn new(ptr: TypePtr, name: Option<String>, type_ref: TypeRefs) -> Self {
         Self {
             start: Cell::from(None),
+            map: HashMap::default(),
             ptr,
             name,
             type_ref,
